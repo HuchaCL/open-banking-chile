@@ -2,7 +2,7 @@
 import { config } from 'dotenv';
 import { banks, listBanks, getBank } from "./index.js";
 import { Spinner } from "./utils.js";
-config();
+config({ quiet: true });
 
 async function main() {
   const args = process.argv.slice(2);
