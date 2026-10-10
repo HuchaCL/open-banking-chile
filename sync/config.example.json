@@ -4,15 +4,27 @@
   "banks": [
     {
       "bank": "falabella",
-      "sources": ["credit_card_unbilled", "credit_card_billed"],
-      "accounts": { "0": 1 },
-      "creditCards": { "CMR Mastercard ****0000": 2 }
+      "sources": [
+        "credit_card_unbilled"
+      ],
+      "accounts": {
+        "0": 1
+      },
+      "creditCards": {
+        "CMR Mastercard ****0000": 2
+      }
     },
     {
       "bank": "santander",
-      "sources": ["credit_card_unbilled", "credit_card_billed"],
-      "accounts": { "0": 3 },
-      "creditCards": { "Tarjeta Ejemplo ****0000": 4 }
+      "sources": [
+        "credit_card_unbilled"
+      ],
+      "accounts": {
+        "0": 3
+      },
+      "creditCards": {
+        "Tarjeta Ejemplo ****0000": 4
+      }
     }
   ]
 }
