@@ -8,7 +8,7 @@ Puesta en marcha, en orden, en el Mac de la casa:
 
 1. `npm install && npm run build`
 2. `.env` en la raíz con `<BANCO>_RUT` y `<BANCO>_PASS` de cada banco (ej. `FALABELLA_RUT`, `SANTANDER_PASS`). Nunca va a git.
-3. `cp sync/config.example.json sync/config.json` y completar: `apiUrl` de la API, `key` con el valor de `DJANGO_INGEST_KEY`, y por banco el id en la API de la cuenta de Hucha de cada tarjeta, por su etiqueta (`creditCards`), y de cada cuenta, por su posición (`accounts`, `"0"` es la primera). Las etiquetas salen en los avisos de `--dry-run`. `sources` dice qué movimientos se mandan: las tarjetas en el hito 3; `"account"` se suma en el hito 4.
+3. `cp sync/config.example.json sync/config.json` y completar: `apiUrl` de la API, `key` con el valor de `DJANGO_INGEST_KEY`, y por banco el id en la API de la cuenta de Hucha de cada tarjeta, por su etiqueta (`creditCards`), y de cada cuenta, por su posición (`accounts`, `"0"` es la primera). Las etiquetas salen en los avisos de `--dry-run`. `sources` dice qué movimientos se mandan: `"credit_card_unbilled"`, las compras no facturadas de la tarjeta, en el hito 3; los facturados son el estado de cuenta anterior y entran por la cartola; `"account"` se suma en el hito 4.
 4. `node sync/run.mjs --dry-run`: corre los bancos y muestra cuántas filas irían a cada cuenta, sin mandar nada. Las tarjetas o cuentas que no están en el config salen como aviso.
 5. `node sync/run.mjs`: manda las filas y muestra, por cuenta, cuántas quedaron nuevas y cuántas ya se conocían. `--bank <id>` corre un solo banco.
 6. `sync/install-launchd.sh`: instala `~/Library/LaunchAgents/cl.hucha.sync.plist`, que corre el runner cada tres horas; el log queda en `~/Library/Logs/hucha-sync.log`.
