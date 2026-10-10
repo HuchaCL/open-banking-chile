@@ -1,5 +1,24 @@
 # Open Banking Chile
 
+## Hucha
+
+Este es el fork de [HuchaCL](https://github.com/HuchaCL/open-banking-chile): el upstream [kaihv/open-banking-chile](https://github.com/kaihv/open-banking-chile) más dos PRs fusionados en la rama `hucha`, los movimientos de las tarjetas de crédito Santander (ajunge) y el arreglo del login de Falabella (leoarayas). Los scrapers (`src/`) no cambian; el runner de Hucha vive en `sync/`: corre los scrapers, toma los movimientos de las cuentas y tarjetas del config y los manda a la API de Hucha, que decide cuáles son nuevos.
+
+Puesta en marcha, en orden, en el Mac de la casa:
+
+1. `npm install && npm run build`
+2. `.env` en la raíz con `<BANCO>_RUT` y `<BANCO>_PASS` de cada banco (ej. `FALABELLA_RUT`, `SANTANDER_PASS`). Nunca va a git.
+3. `cp sync/config.example.json sync/config.json` y completar: `apiUrl` de la API, `key` con el valor de `DJANGO_INGEST_KEY`, y por banco el id en la API de la cuenta de Hucha de cada tarjeta, por su etiqueta (`creditCards`), y de cada cuenta, por su posición (`accounts`, `"0"` es la primera). Las etiquetas salen en los avisos de `--dry-run`. `sources` dice qué movimientos se mandan: las tarjetas en el hito 3; `"account"` se suma en el hito 4.
+4. `node sync/run.mjs --dry-run`: corre los bancos y muestra cuántas filas irían a cada cuenta, sin mandar nada. Las tarjetas o cuentas que no están en el config salen como aviso.
+5. `node sync/run.mjs`: manda las filas y muestra, por cuenta, cuántas quedaron nuevas y cuántas ya se conocían. `--bank <id>` corre un solo banco.
+6. `sync/install-launchd.sh`: instala `~/Library/LaunchAgents/cl.hucha.sync.plist`, que corre el runner cada tres horas; el log queda en `~/Library/Logs/hucha-sync.log`.
+
+Para reenviar una corrida guardada (la salida JSON de `node dist/cli.js --bank <id>`): `node sync/run.mjs --from <archivo.json>`.
+
+Una corrida perdida, con el Mac dormido o apagado, no importa: cada corrida trae las últimas semanas y la API reconoce las filas que ya tiene.
+
+---
+
 Scrapers open source para bancos chilenos. Obtén tus movimientos bancarios y saldo como JSON limpio.
 
 > **Disclaimer**: Este proyecto no está afiliado con ningún banco. Úsalo bajo tu propia responsabilidad y solo con tus propias credenciales.
