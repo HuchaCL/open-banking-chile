@@ -137,7 +137,7 @@ export function parseChileanAmount(text: string): number {
 
 /**
  * Normaliza fechas a formato DD-MM-YYYY.
- * Soporta: dd/mm/yyyy, dd.mm.yyyy, dd-mm-yyyy, dd/mm, "9 mar 2026".
+ * Soporta: dd/mm/yyyy, dd.mm.yyyy, dd-mm-yyyy, yyyy-mm-dd, dd/mm, "9 mar 2026".
  */
 export function normalizeDate(raw: string): string {
   const value = raw.trim();
@@ -149,6 +149,12 @@ export function normalizeDate(raw: string): string {
     const month = fullMatch[2].padStart(2, "0");
     const year = fullMatch[3].length === 2 ? `20${fullMatch[3]}` : fullMatch[3];
     return `${day}-${month}-${year}`;
+  }
+
+  // yyyy-mm-dd (ISO, como lo entrega la API de cuenta corriente de Santander)
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
   }
 
   // dd/mm (sin año, asume año actual)

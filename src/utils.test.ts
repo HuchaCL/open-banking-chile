@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { DebugLog, deduplicateMovements, parseChileanAmount } from "./utils.js";
+import { DebugLog, deduplicateMovements, normalizeDate, parseChileanAmount } from "./utils.js";
 import { MOVEMENT_SOURCE } from "./types.js";
 import type { BankMovement } from "./types.js";
 
@@ -138,5 +138,15 @@ describe("deduplicateMovements", () => {
     const b = movement({ description: "B", balance: 200 });
     const result = deduplicateMovements([a, b, a]);
     expect(result.map((m) => m.description)).toEqual(["A", "B"]);
+  });
+});
+
+describe("normalizeDate", () => {
+  it("turns an ISO date into dd-mm-yyyy", () => {
+    expect(normalizeDate("2026-03-19")).toBe("19-03-2026");
+  });
+
+  it("keeps a dd/mm/yyyy date as dd-mm-yyyy", () => {
+    expect(normalizeDate("18/01/2026")).toBe("18-01-2026");
   });
 });
