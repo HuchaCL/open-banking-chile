@@ -12,3 +12,6 @@ debug/
 !/package.json
 !/package-lock.json
 !/tsconfig.json
+
+# config del runner de Hucha, con la clave de ingesta
+sync/config.json
