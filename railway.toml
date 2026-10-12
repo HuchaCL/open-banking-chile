@@ -1,0 +1,9 @@
+# The runner as a Railway cron service built from the Dockerfile. The schedule is UTC: 9:00 to 12:30 in Chilean summer
+# time, an hour earlier in winter. A run that fails is not restarted; the next scheduled one brings the same rows.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+cronSchedule = "*/30 12-15 * * *"
+restartPolicyType = "NEVER"
