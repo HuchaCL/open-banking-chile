@@ -10,6 +10,8 @@ import { DebugLog, delay, deduplicateAcrossSources, deduplicateMovements, findCh
 const BANK_URL = "https://www.bancofalabella.cl";
 const MAX_PAGES = 20;
 const CMR_WAIT_MS = 30_000;
+// Loads of a CMR tab tried before the scrape fails, the first one included
+const CMR_LOAD_ATTEMPTS = 4;
 
 // ─── Browser helpers ─────────────────────────────────────────────
 
@@ -418,7 +420,7 @@ async function scrapeCreditCard(page: Page, debugLog: string[], doScreenshots: b
   await screenshotIfEnabled(page, "06-cmr-card", doScreenshots, debugLog);
 
   // Wait for CMR shadow DOM to render
-  await waitForCmrContent(page, CMR_WAIT_MS);
+  await waitForCmrContent(page, debugLog, "no facturados");
 
   // Owner filter
   if (ownerFilter !== "B") {
@@ -428,7 +430,7 @@ async function scrapeCreditCard(page: Page, debugLog: string[], doScreenshots: b
       const select = root.querySelector("select[name='searchownership']") as HTMLSelectElement | null;
       if (select) { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); }
     }, { host: "credit-card-movements", value: ownerFilter });
-    await waitForCmrContent(page, CMR_WAIT_MS);
+    await waitForCmrContent(page, debugLog, "no facturados");
   }
 
   // ── No facturados (default tab) ────────────────────────────────
@@ -454,7 +456,7 @@ async function scrapeCreditCard(page: Page, debugLog: string[], doScreenshots: b
   const tabClicked = await clickCmrTab(page, debugLog);
   if (tabClicked) {
     await delay(2000);
-    await waitForCmrContent(page, CMR_WAIT_MS);
+    await waitForCmrContent(page, debugLog, "facturados");
     await delay(3000);
     await screenshotIfEnabled(page, "07-cmr-facturados", doScreenshots, debugLog);
 
@@ -485,9 +487,28 @@ async function scrapeCreditCard(page: Page, debugLog: string[], doScreenshots: b
 
 // ─── CMR Shadow DOM helpers ─────────────────────────────────────
 
-async function waitForCmrContent(page: Page, timeoutMs: number): Promise<void> {
+/**
+ * Waits for the CMR component to show movement rows, clicking "Reintentar" whenever the bank reports it could not
+ * load them. `tab` names the tab in the error. Throws when the bank fails CMR_LOAD_ATTEMPTS loads in a row; a tab
+ * that shows neither rows nor the error within CMR_WAIT_MS is left as it is.
+ */
+async function waitForCmrContent(page: Page, debugLog: string[], tab: string): Promise<void> {
+  for (let load = 1; ; load++) {
+    if ((await cmrContent(page)) !== "error") break;
+    if (load === CMR_LOAD_ATTEMPTS) throw new Error(`El banco no pudo cargar los movimientos ${tab} de la CMR en ${load} intentos`);
+    debugLog.push(`  [CMR] Bank could not load the ${tab} movements (${load}/${CMR_LOAD_ATTEMPTS}), clicking Reintentar`);
+    await clickCmrRetry(page);
+  }
+  await delay(500);
+}
+
+/**
+ * "rows" once the CMR component shows movement rows, "error" once the page shows a "Reintentar" button, the bank's
+ * load error; "none" when neither appears within CMR_WAIT_MS.
+ */
+async function cmrContent(page: Page): Promise<"rows" | "error" | "none"> {
   try {
-    await page.waitForFunction((host: string) => {
+    const content = await page.waitForFunction((host: string) => {
       const el = document.querySelector(host) as Element & { shadowRoot?: ShadowRoot };
       if (!el?.shadowRoot) return false;
       function collectAll(root: ShadowRoot | Element): Array<ShadowRoot | Element> {
@@ -498,12 +519,33 @@ async function waitForCmrContent(page: Page, timeoutMs: number): Promise<void> {
         }
         return found;
       }
-      return collectAll(el.shadowRoot).some(
-        r => (r as Element).querySelectorAll("table tbody tr td").length > 0,
-      );
-    }, "credit-card-movements", { timeout: timeoutMs });
-  } catch { /* timeout */ }
-  await delay(500);
+      if (collectAll(el.shadowRoot).some(r => (r as Element).querySelectorAll("table tbody tr td").length > 0)) return "rows";
+      const buttons = collectAll(document.body).flatMap(r => Array.from((r as Element).querySelectorAll<HTMLButtonElement>("button")));
+      if (buttons.some(b => b.innerText?.trim().toLowerCase() === "reintentar" && b.getBoundingClientRect().width > 0)) return "error";
+      return false;
+    }, "credit-card-movements", { timeout: CMR_WAIT_MS, polling: 500 });
+    return (await content.jsonValue()) as "rows" | "error";
+  } catch {
+    return "none";
+  }
+}
+
+async function clickCmrRetry(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    function collectAll(root: ShadowRoot | Element): Array<ShadowRoot | Element> {
+      const found: Array<ShadowRoot | Element> = [root];
+      for (const child of Array.from((root as Element).querySelectorAll("*"))) {
+        const sr = (child as Element & { shadowRoot?: ShadowRoot }).shadowRoot;
+        if (sr) found.push(...collectAll(sr));
+      }
+      return found;
+    }
+    for (const root of collectAll(document.body)) {
+      for (const button of Array.from((root as Element).querySelectorAll<HTMLButtonElement>("button"))) {
+        if (button.innerText?.trim().toLowerCase() === "reintentar") { button.click(); return; }
+      }
+    }
+  });
 }
 
 async function extractCupos(page: Page, debugLog: string[]): Promise<Partial<CreditCardBalance> | null> {
@@ -815,7 +857,10 @@ async function paginateCmrMovements(page: Page, source: MovementSource, debugLog
     debugLog.push(`  [CMR pag] page ${i + 1}: ${result.rows.length} rows`);
     all.push(...result.rows);
 
-    if (!result.clicked) break;
+    if (!result.clicked) {
+      debugLog.push(`  [CMR pag] no next button after page ${i + 1}`);
+      break;
+    }
 
     // Wait for content to change — use the same "fecha de compra" preference as above
     const prevRow = result.firstRow;
@@ -861,7 +906,10 @@ async function paginateCmrMovements(page: Page, source: MovementSource, debugLog
       { timeout: 15000 },
     ).then(() => true, () => false);
 
-    if (!changed) break;
+    if (!changed) {
+      debugLog.push(`  [CMR pag] page ${i + 2} did not load in 15 s`);
+      break;
+    }
     await delay(300);
   }
 
