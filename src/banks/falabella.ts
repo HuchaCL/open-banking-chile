@@ -903,11 +903,11 @@ async function paginateCmrMovements(page: Page, source: MovementSource, debugLog
         return false;
       },
       { host, prev: prevRow, billed: isBilled },
-      { timeout: 15000 },
+      { timeout: CMR_WAIT_MS },
     ).then(() => true, () => false);
 
     if (!changed) {
-      debugLog.push(`  [CMR pag] page ${i + 2} did not load in 15 s`);
+      debugLog.push(`  [CMR pag] page ${i + 2} did not load in ${CMR_WAIT_MS / 1000} s`);
       break;
     }
     await delay(300);
