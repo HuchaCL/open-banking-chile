@@ -104,6 +104,9 @@ async function login(page: Page, rut: string, password: string, debugLog: string
   try {
     await rutInput.first().fill(rut, { timeout: 10000 });
   } catch {
+    debugLog.push(`  Page without RUT field: ${page.url()} · "${await page.title().catch(() => "")}"`);
+    const shown = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "");
+    debugLog.push(`  Shown: ${shown.replace(/\s+/g, " ").trim().slice(0, 300)}`);
     const ss = (await page.screenshot()).toString("base64");
     return { success: false, error: "No se encontró campo de RUT", screenshot: ss };
   }
