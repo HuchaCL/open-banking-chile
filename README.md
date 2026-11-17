@@ -15,7 +15,7 @@ Puesta en marcha, en orden. Los pasos 1 a 5 en un computador, para probar; el 6 
 
 Para reenviar una corrida guardada (la salida JSON de `node dist/cli.js --bank <id>`): `node sync/run.mjs --from <archivo.json>`.
 
-Una corrida perdida no importa: cada corrida trae las últimas semanas y la API reconoce las filas que ya tiene. Railway salta una corrida si la anterior sigue viva.
+Una corrida perdida no importa: cada corrida trae los movimientos de la cuenta del mes en curso y del anterior, y la API reconoce las filas que ya tiene. Railway salta una corrida si la anterior sigue viva.
 
 ---
 

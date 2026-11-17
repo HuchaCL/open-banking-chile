@@ -9,6 +9,7 @@ import { DebugLog, delay, deduplicateAcrossSources, deduplicateMovements, findCh
 
 const BANK_URL = "https://www.bancofalabella.cl";
 const MAX_PAGES = 20;
+const CURRENT_MONTH_OPTION = "Mes en curso";
 const CMR_WAIT_MS = 30_000;
 // Loads of a CMR tab tried before the scrape fails, the first one included
 const CMR_LOAD_ATTEMPTS = 4;
@@ -226,47 +227,41 @@ async function scrapeAccountMovements(page: Page, debugLog: string[], doScreensh
 
   await screenshotIfEnabled(page, "05-account-movements", doScreenshots, debugLog);
 
-  // Expand date range if possible
-  await tryExpandDateRange(page, debugLog);
-
-  // Extract movements via pagination
   progress("Extrayendo movimientos de cuenta...");
-  const movements = await paginateAccountMovements(page, debugLog);
+  const movements = await recentAccountMovements(page, debugLog);
   debugLog.push(`8. [Cuenta] Extracted ${movements.length} movements`);
   progress(`Cuenta: ${movements.length} movimientos encontrados`);
 
-  // Extract balance
-  let balance: number | undefined;
-  if (movements.length > 0 && movements[0].balance > 0) {
-    balance = movements[0].balance;
-  }
-  if (balance === undefined) {
-    const bodyText = await page.locator("body").textContent().catch(() => "");
-    const match = bodyText?.match(/Saldo disponible[\s\S]{0,50}\$\s*([\d.]+)/i);
-    if (match) balance = parseInt(match[1].replace(/[^0-9]/g, ""), 10);
-  }
+  // The header's figure: with two months read, the first movement may not be the latest
+  const bodyText = await page.locator("body").textContent().catch(() => "");
+  const match = bodyText?.match(/Saldo disponible[\s\S]{0,50}\$\s*([\d.]+)/i);
+  const balance = match ? parseInt(match[1].replace(/[^0-9]/g, ""), 10) : undefined;
 
   return { movements, balance };
 }
 
-async function tryExpandDateRange(page: Page, debugLog: string[]): Promise<void> {
-  try {
-    const selects = page.locator("select");
-    const count = await selects.count();
-    for (let i = 0; i < count; i++) {
-      const sel = selects.nth(i);
-      const options = await sel.locator("option").allTextContents();
-      for (const text of options) {
-        const lower = text.toLowerCase();
-        if (lower.includes("todos") || lower.includes("último mes") || lower.includes("30 día") || lower.includes("mes anterior")) {
-          await sel.selectOption({ label: text });
-          debugLog.push(`  Changed select to "${text}"`);
-          await delay(3000);
-          break;
-        }
-      }
-    }
-  } catch { /* best effort */ }
+/**
+ * The movements of the current month and of the previous one, read through the account page's period select, whose
+ * default lists only the last 20. Without that select, the movements the page shows.
+ */
+async function recentAccountMovements(page: Page, debugLog: string[]): Promise<BankMovement[]> {
+  const periodSelect = page.locator("select", { has: page.locator("option", { hasText: CURRENT_MONTH_OPTION }) });
+  if ((await periodSelect.count()) === 0) {
+    debugLog.push("  [Cuenta] No period select, reading the movements shown");
+    return paginateAccountMovements(page, debugLog);
+  }
+  // The past months are labeled MM/YYYY, newest first
+  const pastMonths = (await periodSelect.locator("option").allTextContents()).filter((text) => /^\d{2}\/\d{4}$/.test(text));
+  const movements: BankMovement[] = [];
+  for (const label of [CURRENT_MONTH_OPTION, ...pastMonths.slice(0, 1)]) {
+    await periodSelect.selectOption({ label });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await delay(4000);
+    const monthMovements = await paginateAccountMovements(page, debugLog);
+    debugLog.push(`  [Cuenta] ${label}: ${monthMovements.length} movements`);
+    movements.push(...monthMovements);
+  }
+  return movements;
 }
 
 async function extractMovementsFromPage(page: Page): Promise<BankMovement[]> {
