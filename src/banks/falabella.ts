@@ -354,25 +354,14 @@ async function paginateAccountMovements(page: Page, debugLog: string[]): Promise
   const all: BankMovement[] = [];
 
   for (let i = 0; i < MAX_PAGES; i++) {
-    const movements = await extractMovementsFromPage(page);
-    all.push(...movements);
+    all.push(...(await extractMovementsFromPage(page)));
 
-    // Try clicking "Siguiente" or "Ver más"
-    let clicked = false;
-    for (const text of ["siguiente", "ver más", "mostrar más"]) {
-      const btn = page.locator("button, a").filter({ hasText: new RegExp(text, "i") }).first();
-      if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        const disabled = await btn.isDisabled().catch(() => true);
-        if (!disabled) {
-          await btn.click();
-          await delay(2500);
-          clicked = true;
-          debugLog.push(`  Pagination: loaded page ${i + 2}`);
-          break;
-        }
-      }
-    }
-    if (!clicked) break;
+    // A one-page table has no footer; on the last page the next arrow shows its disabled image, *_Dis.png
+    const nextArrow = page.locator("img[id$='_colImNextPage']");
+    if ((await nextArrow.count()) === 0 || (await nextArrow.getAttribute("src"))?.includes("_Dis")) break;
+    await nextArrow.click();
+    await page.locator(".collection_current_page_number", { hasText: new RegExp(`^${i + 2}$`) }).waitFor();
+    debugLog.push(`  Pagination: loaded page ${i + 2}`);
   }
 
   return deduplicateMovements(all);
